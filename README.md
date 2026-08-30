@@ -51,4 +51,6 @@ Or: `python3 app.py /path/to/file.pdf`
 
 Drag the vertical bar between PAGE and TEXT to resize the panes.
 
-Saving a PDF writes a **new** file from the edited text. Original layout, fonts, and form fields are not kept.
+**Save PDF** writes a new, copyable file from the edited text (plain pages, no original layout).
+
+**Keep layout** copies the original PDF (pages, images, form fields) and puts your edited text back into those pages. Digital text is replaced in its original boxes. Scanned pages keep the page image and get a hidden text layer so the file is still copyable. Pick a new filename so the open file is not overwritten.

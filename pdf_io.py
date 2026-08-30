@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import sys
 import textwrap
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import fitz
@@ -193,3 +195,220 @@ def save_text_pdf(path: str | Path, pages: list[str]) -> None:
 
     doc.save(str(path), deflate=True, garbage=4)
     doc.close()
+
+
+def _split_blocks(text: str) -> list[str]:
+    text = (text or "").replace("\u00ad", "").strip()
+    if not text:
+        return []
+    return [part.rstrip() for part in text.split("\n\n")]
+
+
+def _text_blocks(page: fitz.Page) -> list[dict]:
+    blocks = page.get_text("blocks") or []
+    out: list[dict] = []
+    for block in sorted(blocks, key=lambda b: (round(b[1], 1), b[0])):
+        if len(block) > 6 and block[6] != 0:
+            continue
+        chunk = (block[4] or "").replace("\u00ad", "").rstrip()
+        if not chunk.strip():
+            continue
+        out.append({"rect": fitz.Rect(block[:4]), "text": chunk})
+    return out
+
+
+def _rgb(color: int) -> tuple[float, float, float]:
+    return (
+        ((color >> 16) & 255) / 255.0,
+        ((color >> 8) & 255) / 255.0,
+        (color & 255) / 255.0,
+    )
+
+
+def _block_style(page: fitz.Page, rect: fitz.Rect) -> tuple[float, tuple[float, float, float], str]:
+    info = page.get_text("dict", clip=rect) or {}
+    sizes: list[float] = []
+    colors: list[int] = []
+    flags = 0
+    for block in info.get("blocks") or []:
+        for line in block.get("lines") or []:
+            for span in line.get("spans") or []:
+                if not (span.get("text") or "").strip():
+                    continue
+                sizes.append(float(span.get("size") or 11.0))
+                colors.append(int(span.get("color") or 0))
+                flags = int(span.get("flags") or 0)
+    fontsize = sorted(sizes)[len(sizes) // 2] if sizes else 11.0
+    color = _rgb(colors[0]) if colors else (0.0, 0.0, 0.0)
+    italic = bool(flags & 2)
+    bold = bool(flags & 16)
+    if bold and italic:
+        fontname = "hebi"
+    elif bold:
+        fontname = "hebo"
+    elif italic:
+        fontname = "heit"
+    else:
+        fontname = "helv"
+    return fontsize, color, fontname
+
+
+def _redact(page: fitz.Page, rect: fitz.Rect) -> None:
+    box = fitz.Rect(rect)
+    box.normalize()
+    box += (-0.6, -0.6, 0.6, 0.6)
+    page.add_redact_annot(box, fill=None)
+
+
+def _insert_in_rect(
+    page: fitz.Page,
+    rect: fitz.Rect,
+    text: str,
+    fontsize: float,
+    color: tuple[float, float, float],
+    fontname: str,
+    *,
+    invisible: bool = False,
+) -> None:
+    box = fitz.Rect(rect)
+    box.normalize()
+    if box.width < 8 or box.height < 8:
+        return
+    payload = text or ""
+    if invisible:
+        try:
+            page.insert_textbox(
+                box,
+                payload,
+                fontsize=max(6.0, fontsize),
+                fontname=fontname,
+                color=color,
+                render_mode=3,
+                overlay=True,
+            )
+            return
+        except TypeError:
+            pass
+    r, g, b = (int(c * 255) for c in color)
+    css = (
+        f"body{{font-family:sans-serif;font-size:{max(6.0, fontsize):.1f}pt;"
+        f"color:rgb({r},{g},{b});margin:0;line-height:1.15;}}"
+    )
+    markup = html.escape(payload).replace("\n", "<br>\n")
+    try:
+        page.insert_htmlbox(box, f"<div>{markup}</div>", css=css)
+        return
+    except Exception:
+        pass
+    size = max(6.0, fontsize)
+    while size >= 6.0:
+        leftover = page.insert_textbox(
+            box,
+            payload,
+            fontsize=size,
+            fontname=fontname,
+            color=color,
+            align=fitz.TEXT_ALIGN_LEFT,
+        )
+        if leftover >= 0:
+            return
+        size -= 0.5
+
+
+def _apply_redactions(page: fitz.Page) -> None:
+    kwargs = {}
+    images = getattr(fitz, "PDF_REDACT_IMAGE_NONE", None)
+    graphics = getattr(fitz, "PDF_REDACT_LINE_ART_NONE", None)
+    if images is not None:
+        kwargs["images"] = images
+    if graphics is not None:
+        kwargs["graphics"] = graphics
+    page.apply_redactions(**kwargs)
+
+
+def _apply_page_edits(page: fitz.Page, edited: str) -> None:
+    original = extract_page_text(page)
+    if (edited or "").strip() == (original or "").strip():
+        return
+
+    blocks = _text_blocks(page)
+    new_parts = _split_blocks(edited)
+
+    if not blocks:
+        if new_parts:
+            inner = fitz.Rect(page.rect)
+            inner += (36, 36, -36, -36)
+            _insert_in_rect(
+                page,
+                inner,
+                "\n\n".join(new_parts),
+                11.0,
+                (0.0, 0.0, 0.0),
+                "helv",
+                invisible=True,
+            )
+        return
+
+    if not new_parts:
+        for block in blocks:
+            _redact(page, block["rect"])
+        _apply_redactions(page)
+        return
+
+    matcher = SequenceMatcher(
+        a=[b["text"] for b in blocks],
+        b=new_parts,
+        autojunk=False,
+    )
+    pending: list[tuple[fitz.Rect, str, float, tuple[float, float, float], str]] = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        old = blocks[i1:i2]
+        new = new_parts[j1:j2]
+        if tag in ("replace", "delete"):
+            for block in old:
+                _redact(page, block["rect"])
+        if tag in ("replace", "insert") and new:
+            if old and len(old) == len(new):
+                for block, text in zip(old, new):
+                    if text == block["text"]:
+                        continue
+                    fontsize, color, fontname = _block_style(page, block["rect"])
+                    pending.append((block["rect"], text, fontsize, color, fontname))
+            else:
+                if old:
+                    box = fitz.Rect(old[0]["rect"])
+                    for block in old[1:]:
+                        box |= block["rect"]
+                    fontsize, color, fontname = _block_style(page, old[0]["rect"])
+                else:
+                    prev = blocks[i1 - 1]["rect"] if i1 else page.rect
+                    box = fitz.Rect(prev.x0, prev.y1 + 2, prev.x1, min(prev.y1 + 72, page.rect.y1 - 12))
+                    if box.height < 16:
+                        box = fitz.Rect(page.rect.x0 + 36, page.rect.y1 - 90, page.rect.x1 - 36, page.rect.y1 - 24)
+                    fontsize, color, fontname = 11.0, (0.0, 0.0, 0.0), "helv"
+                pending.append((box, "\n\n".join(new), fontsize, color, fontname))
+
+    _apply_redactions(page)
+    for rect, text, fontsize, color, fontname in pending:
+        _insert_in_rect(page, rect, text, fontsize, color, fontname)
+
+
+def save_original_layout_pdf(
+    path: str | Path,
+    source: fitz.Document,
+    pages: list[str],
+) -> None:
+    """Copy the original PDF and write edited text into the existing layout."""
+    out = fitz.open()
+    try:
+        out.insert_pdf(source)
+        count = min(out.page_count, len(pages))
+        for i in range(count):
+            _apply_page_edits(out[i], pages[i])
+        out.save(str(path), deflate=True, garbage=4, encryption=fitz.PDF_ENCRYPT_NONE)
+    finally:
+        out.close()
+

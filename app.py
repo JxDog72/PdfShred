@@ -20,6 +20,7 @@ from pdf_io import (
     open_document,
     page_has_images,
     render_page,
+    save_original_layout_pdf,
     save_text_file,
     save_text_pdf,
 )
@@ -142,6 +143,7 @@ class PdfShred(ctk.CTk):
         self._btn(toolbar, "Copy page", self.copy_page).pack(side="right", padx=(4, 12), pady=8)
         self._btn(toolbar, "Copy all", self.copy_all).pack(side="right", padx=4, pady=8)
         self._btn(toolbar, "OCR page", self.ocr_current_page).pack(side="right", padx=4, pady=8)
+        self._btn(toolbar, "Keep layout", self.save_original_pdf).pack(side="right", padx=4, pady=8)
         self._btn(toolbar, "Save PDF", self.save_pdf).pack(side="right", padx=4, pady=8)
         self._btn(toolbar, "Save text", self.save_txt).pack(side="right", padx=4, pady=8)
 
@@ -570,6 +572,34 @@ class PdfShred(ctk.CTk):
         self._loaded_texts = list(self.page_texts)
         self.set_status(
             f"Saved a new copyable PDF: {Path(path).name}",
+            ok=True,
+        )
+
+    def save_original_pdf(self) -> None:
+        self._stash_editor()
+        if self.doc is None or not self.page_texts:
+            self.set_status("Open a PDF first.", ok=False)
+            return
+        initial = (self.path.stem + "-edited.pdf") if self.path else "edited.pdf"
+        path = filedialog.asksaveasfilename(
+            title="Save original layout with edits",
+            defaultextension=".pdf",
+            initialfile=initial,
+            filetypes=[("PDF files", "*.pdf")],
+        )
+        if not path:
+            return
+        if self.path is not None and Path(path).resolve() == self.path.resolve():
+            self.set_status("Choose a new filename so the open PDF is not overwritten.", ok=False)
+            return
+        try:
+            save_original_layout_pdf(path, self.doc, self.page_texts)
+        except Exception as exc:
+            self.set_status(f"Could not save original layout: {exc}", ok=False)
+            return
+        self._loaded_texts = list(self.page_texts)
+        self.set_status(
+            f"Saved original layout with your edits: {Path(path).name}",
             ok=True,
         )
 
