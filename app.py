@@ -142,7 +142,14 @@ class PdfShred(ctk.CTk):
 
         self._btn(toolbar, "Copy page", self.copy_page).pack(side="right", padx=(4, 12), pady=8)
         self._btn(toolbar, "Copy all", self.copy_all).pack(side="right", padx=4, pady=8)
-        self._btn(toolbar, "OCR page", self.ocr_current_page).pack(side="right", padx=4, pady=8)
+        self._ocr_btn = self._btn(toolbar, "OCR page", self.ocr_current_page)
+        self._ocr_btn.pack(side="right", padx=4, pady=8)
+        self._ocr_btn.bind(
+            "<Enter>",
+            lambda e: self.set_status(
+                "OCR: read text from a photo/scan of this page when there is no selectable text layer."
+            ),
+        )
         self._btn(toolbar, "Keep layout", self.save_original_pdf).pack(side="right", padx=4, pady=8)
         self._btn(toolbar, "Save PDF", self.save_pdf).pack(side="right", padx=4, pady=8)
         self._btn(toolbar, "Save text", self.save_txt).pack(side="right", padx=4, pady=8)

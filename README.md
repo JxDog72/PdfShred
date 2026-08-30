@@ -25,6 +25,10 @@ python app.py "C:\path\to\file.pdf"
 
 `winocr` uses Windows OCR. Without it, digital text still extracts; scanned pages need Tesseract if you have it installed.
 
+**OCR page** means Optical Character Recognition: it looks at the page *as a picture* and types out the words. Use it when the PDF is a scan or photo (no selectable text). Digital PDFs already have a text layer, so Open is enough.
+
+Double-click `Run-PdfShred.bat` to start. On Windows the black console window closes after launch.
+
 ---
 
 ## Linux
