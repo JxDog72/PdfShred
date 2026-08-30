@@ -2,6 +2,16 @@
 
 Local desktop app: open a PDF, extract and edit the text, save a copyable `.txt` or `.pdf`. Nothing is uploaded.
 
+You can also **just view** a PDF. **Page dark** / **Page light** flips the page (and the editor) for night reading.
+
+![PdfShred with a light page](screenshots/light.png)
+
+![PdfShred with a dark page](screenshots/dark.png)
+
+**Keep layout** copies the original PDF and writes your edits back into those pages. It is close — not a perfect clone of every font, box, and line.
+
+![Original page vs Keep layout copy](screenshots/keep-layout.png)
+
 **License:** [MIT](LICENSE).
 
 ---
@@ -57,4 +67,4 @@ Drag the vertical bar between PAGE and TEXT to resize the panes.
 
 **Save PDF** writes a new, copyable file from the edited text (plain pages, no original layout).
 
-**Keep layout** copies the original PDF (pages, images, form fields) and puts your edited text back into those pages. Digital text is replaced in its original boxes. Scanned pages keep the page image and get a hidden text layer so the file is still copyable. Pick a new filename so the open file is not overwritten.
+**Keep layout** keeps the original pages, images, and form fields, then drops your edited text into the old boxes. Scanned pages keep the page image and get a hidden text layer so the file is still copyable. Pick a new filename so the open file is not overwritten.
