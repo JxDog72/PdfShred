@@ -4,13 +4,13 @@ Local desktop app: open a PDF, extract and edit the text, save a copyable `.txt`
 
 You can also **just view** a PDF. **Page dark** / **Page light** flips the page (and the editor) for night reading.
 
-![PdfShred with a light page](screenshots/light.png)
+![PdfShred with a light page](https://raw.githubusercontent.com/JxDog72/PdfShred/screenshots/light.png)
 
-![PdfShred with a dark page](screenshots/dark.png)
+![PdfShred with a dark page](https://raw.githubusercontent.com/JxDog72/PdfShred/screenshots/dark.png)
 
 **Keep layout** copies the original PDF and writes your edits back into those pages. It is close — not a perfect clone of every font, box, and line.
 
-![Original page vs Keep layout copy](screenshots/keep-layout.png)
+![Original page vs Keep layout copy](https://raw.githubusercontent.com/JxDog72/PdfShred/screenshots/keep-layout.png)
 
 **License:** [MIT](LICENSE).
 

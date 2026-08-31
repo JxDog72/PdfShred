@@ -7,3 +7,6 @@ _sample_*.pdf
 _sample_*.txt
 .DS_Store
 Thumbs.db
+
+# Promo shots live on the `screenshots` branch for the GitHub README only.
+/screenshots/
